@@ -1,0 +1,81 @@
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║   INVENTORY INTELLIGENCE SYSTEM - QUICK INSTALL GUIDE         ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📦 INSTALLATION IN 3 STEPS:
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 1: Install Python 3.9+                                 │
+│ → Windows: Download from python.org                         │
+│ → Mac: brew install python@3.9                              │
+│ → Linux: sudo apt install python3.9 python3.9-venv         │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 2: Run Installation                                    │
+│                                                              │
+│ WINDOWS:                                                     │
+│   → Double-click: install.bat                               │
+│                                                              │
+│ MAC/LINUX:                                                   │
+│   → Open Terminal                                            │
+│   → Run: ./install.sh                                        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 3: Start Dashboard                                     │
+│                                                              │
+│ WINDOWS:                                                     │
+│   → Double-click: run_dashboard.bat                         │
+│                                                              │
+│ MAC/LINUX:                                                   │
+│   → Double-click: run_dashboard.sh                          │
+│   → Or run: ./run_dashboard.sh                              │
+└─────────────────────────────────────────────────────────────┘
+
+🌐 Dashboard opens at: http://localhost:8501
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 DETAILED INSTRUCTIONS:
+   → See: INSTALLATION.md
+
+❓ TROUBLESHOOTING:
+   Problem: Python not found
+   Solution: Add Python to PATH during installation
+
+   Problem: Permission denied (Mac/Linux)
+   Solution: chmod +x install.sh && chmod +x run_dashboard.sh
+
+   Problem: Port already in use
+   Solution: Close other apps or use different port
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️  INSTALLATION TIME: 15-20 minutes (first time)
+📊 DAILY STARTUP TIME: 30 seconds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ QUICK CHECKLIST:
+   [ ] Python 3.9+ installed
+   [ ] Ran install.bat / install.sh
+   [ ] Dashboard starts successfully
+   [ ] Can upload Tally files
+   [ ] Analysis completes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 NEED HELP?
+   → INSTALLATION.md (Complete guide)
+   → QUICK_START.md (How to use)
+   → PACKAGES_GUIDE.md (Features & pricing)
+
+🚀 START MAKING SMARTER TRADING DECISIONS TODAY!
+
+╔═══════════════════════════════════════════════════════════════╗
+║  Your Data. Your Computer. Your Control. 100% Private! 🔒    ║
+╚═══════════════════════════════════════════════════════════════╝
+
