@@ -247,66 +247,77 @@ class AdvancedAnalytics:
             'low_activity_customers': low_activity
         }
 
-    def price_intelligence(self, price_df: pd.DataFrame,
-                          stock_df: pd.DataFrame) -> Dict:
+    def price_intelligence(self, purchases_df: pd.DataFrame,
+                          products_df: pd.DataFrame) -> Dict:
         """
-        Price intelligence: detect trends, suggest buying/selling strategies
+        Price intelligence derived from purchase item-wise register.
+        purchases_df columns: date, product_name, product_id, rate
+        products_df columns: product_id, name, current_stock
         """
         logger.info("Analyzing price intelligence...")
 
+        if purchases_df.empty or 'rate' not in purchases_df.columns:
+            empty = pd.DataFrame()
+            return {'price_insights': empty, 'volatile_products': empty, 'buying_opportunities': empty}
+
         price_insights = []
 
-        for product in price_df['Product'].unique():
-            product_prices = price_df[price_df['Product'] == product].sort_values('Date')
+        for product_name in purchases_df['product_name'].unique():
+            product_prices = (
+                purchases_df[purchases_df['product_name'] == product_name]
+                .sort_values('date')
+            )
 
-            if len(product_prices) >= 2:
-                latest_price = product_prices['Price (₹)'].iloc[-1]
-                previous_price = product_prices['Price (₹)'].iloc[-2]
-                avg_price = product_prices['Price (₹)'].mean()
-                min_price = product_prices['Price (₹)'].min()
-                max_price = product_prices['Price (₹)'].max()
+            if len(product_prices) < 2:
+                continue
 
-                # Calculate price change
-                price_change = ((latest_price - previous_price) / previous_price) * 100
+            latest_price = product_prices['rate'].iloc[-1]
+            previous_price = product_prices['rate'].iloc[-2]
+            avg_price = product_prices['rate'].mean()
+            min_price = product_prices['rate'].min()
+            max_price = product_prices['rate'].max()
 
-                # Get current stock
-                stock_info = stock_df[stock_df['Product'] == product]
-                current_stock = stock_info['Current Stock'].values[0] if len(stock_info) > 0 else 0
+            price_change = ((latest_price - previous_price) / previous_price) * 100 if previous_price else 0
 
-                # Generate recommendation
-                if price_change < -5:
-                    recommendation = "📉 PRICE DROPPED → Buy more stock"
-                    priority = 'HIGH'
-                elif price_change > 5:
-                    recommendation = "📈 PRICE RISING → Reduce holding, sell quickly"
-                    priority = 'MEDIUM'
-                elif latest_price < avg_price * 0.9:
-                    recommendation = "💰 Below average → Good buying opportunity"
-                    priority = 'MEDIUM'
-                elif latest_price > avg_price * 1.1:
-                    recommendation = "⚠️ Above average → Monitor closely"
-                    priority = 'LOW'
-                else:
-                    recommendation = "✅ Stable pricing"
-                    priority = 'LOW'
+            product_info = products_df[products_df['name'] == product_name]
+            current_stock = product_info['current_stock'].values[0] if len(product_info) > 0 else 0
 
-                price_insights.append({
-                    'product': product,
-                    'current_price': latest_price,
-                    'price_change_pct': round(price_change, 2),
-                    'avg_price': round(avg_price, 2),
-                    'min_price': min_price,
-                    'max_price': max_price,
-                    'current_stock': current_stock,
-                    'recommendation': recommendation,
-                    'priority': priority
-                })
+            if price_change < -5:
+                recommendation = "📉 PRICE DROPPED → Buy more stock"
+                priority = 'HIGH'
+            elif price_change > 5:
+                recommendation = "📈 PRICE RISING → Reduce holding, sell quickly"
+                priority = 'MEDIUM'
+            elif latest_price < avg_price * 0.9:
+                recommendation = "💰 Below average → Good buying opportunity"
+                priority = 'MEDIUM'
+            elif latest_price > avg_price * 1.1:
+                recommendation = "⚠️ Above average → Monitor closely"
+                priority = 'LOW'
+            else:
+                recommendation = "✅ Stable pricing"
+                priority = 'LOW'
+
+            price_insights.append({
+                'product': product_name,
+                'current_price': latest_price,
+                'price_change_pct': round(price_change, 2),
+                'avg_price': round(avg_price, 2),
+                'min_price': min_price,
+                'max_price': max_price,
+                'current_stock': current_stock,
+                'recommendation': recommendation,
+                'priority': priority
+            })
 
         price_insights_df = pd.DataFrame(price_insights)
 
+        if price_insights_df.empty:
+            return {'price_insights': price_insights_df, 'volatile_products': price_insights_df, 'buying_opportunities': price_insights_df}
+
         return {
             'price_insights': price_insights_df,
-            'volatile_products': price_insights_df[abs(price_insights_df['price_change_pct']) > 10],
+            'volatile_products': price_insights_df[price_insights_df['price_change_pct'].abs() > 10],
             'buying_opportunities': price_insights_df[price_insights_df['priority'] == 'HIGH']
         }
 

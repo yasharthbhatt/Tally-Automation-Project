@@ -337,8 +337,4 @@ def render_plan_badge(user_id: str):
     </div>
     """, unsafe_allow_html=True)
 
-    # Show upgrade button if not on highest plan or if trial expired
-    if current_sub['plan'] != 'ai_plus' or current_sub.get('status') == 'expired':
-        if st.button("⬆️ Upgrade Plan", key="sidebar_upgrade"):
-            st.session_state['show_subscription_page'] = True
-            st.experimental_rerun()
+    pass

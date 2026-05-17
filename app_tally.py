@@ -18,6 +18,7 @@ import sys
 sys.path.append(str(Path(__file__).parent))
 
 from data_ingestion.tally_parser_custom import TallyCustomParser
+from news.news_fetcher import fetch_all_news
 from ai_engine.forecasting import DemandForecaster
 from ai_engine.customer_segmentation import CustomerSegmentation
 from ai_engine.advanced_analytics import AdvancedAnalytics
@@ -46,7 +47,7 @@ if 'data' not in st.session_state:
 if 'results' not in st.session_state:
     st.session_state.results = None
 if 'package' not in st.session_state:
-    st.session_state.package = 'enterprise'  # Default to enterprise for demo
+    st.session_state.package = 'ai_plus'
 if 'llm_engine' not in st.session_state:
     # Initialize LLM engine if API keys are available
     llm_provider = os.getenv("LLM_PROVIDER", "openai")
@@ -61,26 +62,34 @@ if 'show_subscription_page' not in st.session_state:
     st.session_state.show_subscription_page = False
 
 
-def load_tally_data(product_file, customer_file):
-    """Load and parse Tally export files"""
+FILES_DIR = Path(__file__).parent / "Files"
+
+TALLY_FILES = {
+    "party_ledger":    FILES_DIR / "Cr. party ledger.xlsx",
+    "purchase":        FILES_DIR / "purchase item wise  .xlsx",
+    "sales":           FILES_DIR / "sales .xlsx",
+    "sales_item_wise": FILES_DIR / "sales item wise.xlsx",
+}
+
+
+def load_tally_data():
+    """Load and parse Tally export files from the Files/ folder"""
+    missing = [name for name, path in TALLY_FILES.items() if not path.exists()]
+    if missing:
+        raise FileNotFoundError(
+            f"Missing files in Files/ folder: {missing}"
+        )
+
     parser = TallyCustomParser()
 
-    # Parse files
-    price_df, adoption_df, stock_df = parser.parse_product_reports(product_file)
-    ledger_df = parser.parse_customer_ledger(customer_file)
+    party_ledger_df   = parser.parse_party_ledger(TALLY_FILES["party_ledger"])
+    purchases_df      = parser.parse_purchase_item_wise(TALLY_FILES["purchase"])
+    sales_df          = parser.parse_sales(TALLY_FILES["sales"])
+    sales_item_wise_df = parser.parse_sales_item_wise(TALLY_FILES["sales_item_wise"])
 
-    # Create unified datasets
-    unified = parser.create_unified_datasets(price_df, adoption_df, stock_df, ledger_df)
-
-    # Store raw data too
-    unified['raw'] = {
-        'price': price_df,
-        'adoption': adoption_df,
-        'stock': stock_df,
-        'ledger': ledger_df
-    }
-
-    return unified
+    return parser.create_unified_datasets(
+        party_ledger_df, purchases_df, sales_df, sales_item_wise_df
+    )
 
 
 def run_analysis(data):
@@ -159,7 +168,7 @@ def run_analysis(data):
         results['customer_intel'] = customer_intel
 
         # Price intelligence
-        price_intel = advanced.price_intelligence(data['raw']['price'], data['raw']['stock'])
+        price_intel = advanced.price_intelligence(data['purchases'], data['products'])
         results['price_intel'] = price_intel
 
         # Generate alerts
@@ -179,87 +188,43 @@ def main():
         render_subscription_page(st.session_state.user_id)
         if st.button("← Back to Dashboard"):
             st.session_state.show_subscription_page = False
-            st.experimental_rerun()
+            st.rerun()
         return
 
     # Sidebar
     with st.sidebar:
-        # User/Subscription info
-        st.markdown("### 👤 Your Account")
-        st.caption(f"User ID: {st.session_state.user_id}")
-        render_plan_badge(st.session_state.user_id)
-
-        if st.button("💳 Manage Subscription", key="sidebar_manage_subscription"):
-            st.session_state.show_subscription_page = True
-            st.experimental_rerun()
+        st.markdown("---")
 
         st.markdown("---")
 
-        # Package Selection
-        st.header("📦 Select Package")
+        st.header("📁 Tally Files")
 
-        package_options = {
-            'essential': '📦 Essential (₹1,499/mo)',
-            'professional': '💼 Professional (₹3,499/mo)',
-            'enterprise': '🚀 Enterprise (₹5,999/mo)',
-            'ai_plus': '🤖 AI Plus (₹9,999/mo)'
-        }
+        for name, path in TALLY_FILES.items():
+            label = path.name
+            if path.exists():
+                st.success(f"✅ {label}")
+            else:
+                st.error(f"❌ {label}")
 
-        selected_package = st.selectbox(
-            "Choose your plan:",
-            options=list(package_options.keys()),
-            format_func=lambda x: package_options[x],
-            index=3  # Default to AI Plus
-        )
+        if st.button("🔄 Reload Data"):
+            st.session_state.data_loaded = False
+            st.session_state.data = None
+            st.session_state.results = None
+            st.rerun()
 
-        st.session_state.package = selected_package
-
-        # Show package info
-        package_info = PACKAGES[selected_package]
-        with st.expander("ℹ️ Package Details"):
-            st.write(f"**{package_info['name']}**")
-            st.write(package_info['description'])
-            st.write(f"**Price:** {package_info['price']}")
-            st.write("**Features:**")
-            for feature in package_info['features']:
-                st.write(f"• {feature}")
-
-        st.markdown("---")
-
-        st.header("📁 Upload Tally Exports")
-
-        st.markdown("**Product Reports**")
-        product_file = st.file_uploader(
-            "product_wise_reports.xlsx",
-            type=['xlsx'],
-            key='product'
-        )
-
-        st.markdown("**Customer Reports**")
-        customer_file = st.file_uploader(
-            "sample_tally_customer_report.xlsx",
-            type=['xlsx'],
-            key='customer'
-        )
-
-        if product_file and customer_file:
-            if st.button("🚀 Process & Analyze"):
-                try:
-                    with st.spinner("Loading Tally data..."):
-                        data = load_tally_data(product_file, customer_file)
-                        st.session_state.data = data
-                        st.session_state.data_loaded = True
-
-                    # Run analysis
-                    results = run_analysis(data)
-                    st.session_state.results = results
-
-                    st.success("✅ Analysis complete!")
-
-                except Exception as e:
-                    st.error(f"Error: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+    # Auto-load data on first run
+    if not st.session_state.data_loaded:
+        try:
+            with st.spinner("Loading Tally data from Files/ folder..."):
+                data = load_tally_data()
+                st.session_state.data = data
+                st.session_state.data_loaded = True
+            results = run_analysis(data)
+            st.session_state.results = results
+        except Exception as e:
+            st.error(f"Failed to load Tally files: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
     # Main content
     if st.session_state.data_loaded and st.session_state.results is not None:
@@ -279,7 +244,8 @@ def main():
             "📦 Smart Reorder",
             "👥 Customer Intelligence",
             "💰 Price Intelligence",
-            "📈 Analytics"
+            "📈 Analytics",
+            "📰 Market News",
         ]
 
         # Add AI Assistant tab for AI Plus package
@@ -317,7 +283,7 @@ def main():
                 st.metric("📦 Dead Stock Items", dead_stock_count)
 
             with col4:
-                total_revenue = data['ledger']['Debit (₹)'].sum()
+                total_revenue = data['sales']['debit'].sum()
                 st.metric("💰 Total Revenue", f"₹{total_revenue:,.0f}")
 
             # Quick action panels
@@ -367,7 +333,7 @@ def main():
                 st.metric("Total Stock", f"{int(total_stock):,} units")
 
             with col4:
-                total_revenue = data['ledger']['Debit (₹)'].sum()
+                total_revenue = data['sales']['debit'].sum()
                 st.metric("Total Revenue", f"₹{total_revenue:,.0f}")
 
             # Stock Summary
@@ -393,9 +359,9 @@ def main():
 
             # Customer Activity
             st.subheader("👥 Top Customers by Revenue")
-            top_customers = data['ledger'].groupby('Customer Name')['Debit (₹)'].sum().nlargest(10)
+            top_customers = data['customers'].nlargest(10, 'total_debit').set_index('name')['total_debit']
             fig = px.bar(top_customers, orientation='h', title='Top 10 Customers')
-            fig.update_xaxes(title='Revenue (₹)')
+            fig.update_xaxes(title='Debit Amount (₹)')
             st.plotly_chart(fig, use_container_width=True)
 
         # Stock Risk Tab
@@ -584,12 +550,12 @@ def main():
                         with col4:
                             st.metric("Revenue %", f"{metrics['revenue_percentage']:.1f}%")
 
-            # Customer adoption
+            # Customer adoption from transactions
             st.subheader("Product Adoption by Customer")
-            adoption_df = data['raw']['adoption']
-            fig = px.bar(adoption_df.nlargest(15, 'Quantity Purchased'),
-                        x='Quantity Purchased', y='Customer Name',
-                        color='Product', orientation='h',
+            txn_agg = data['transactions'].groupby(['customer_name', 'product_name'])['quantity'].sum().reset_index()
+            fig = px.bar(txn_agg.nlargest(15, 'quantity'),
+                        x='quantity', y='customer_name',
+                        color='product_name', orientation='h',
                         title='Top 15 Customer-Product Combinations')
             st.plotly_chart(fig, use_container_width=True)
 
@@ -639,21 +605,18 @@ def main():
                         st.info(item['recommendation'])
 
                 # Price trends chart
-                st.subheader("📈 Price Trends")
-                price_df = data['raw']['price']
-                selected_product = st.selectbox("Select Product", price_df['Product'].unique(), key='price_intel_select')
-
-                product_prices = price_df[price_df['Product'] == selected_product].sort_values('Date')
-                fig = px.line(product_prices, x='Date', y='Price (₹)',
-                            title=f'Price Trend: {selected_product}',
-                            markers=True)
-
-                # Add average line
-                avg_price = product_prices['Price (₹)'].mean()
-                fig.add_hline(y=avg_price, line_dash="dash", line_color="red",
-                            annotation_text=f"Avg: ₹{avg_price:.0f}")
-
-                st.plotly_chart(fig, use_container_width=True)
+                st.subheader("📈 Purchase Price Trends")
+                price_df = data['purchases']
+                if not price_df.empty and 'product_name' in price_df.columns:
+                    selected_product = st.selectbox("Select Product", price_df['product_name'].unique(), key='price_intel_select')
+                    product_prices = price_df[price_df['product_name'] == selected_product].sort_values('date')
+                    fig = px.line(product_prices, x='date', y='rate',
+                                title=f'Purchase Rate Trend: {selected_product}',
+                                markers=True)
+                    avg_price = product_prices['rate'].mean()
+                    fig.add_hline(y=avg_price, line_dash="dash", line_color="red",
+                                annotation_text=f"Avg: ₹{avg_price:.0f}")
+                    st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("No price intelligence data available")
 
@@ -664,23 +627,23 @@ def main():
             # Sales trends
             st.subheader("💰 Sales Trends")
 
-            ledger_df = data['ledger']
-            daily_sales = ledger_df.groupby('Date')['Debit (₹)'].sum().reset_index()
-            daily_sales = daily_sales.sort_values('Date')
+            sales_df = data['sales']
+            daily_sales = sales_df.groupby('date')['debit'].sum().reset_index().sort_values('date')
 
-            fig = px.line(daily_sales, x='Date', y='Debit (₹)',
-                        title='Daily Sales Revenue',
+            fig = px.line(daily_sales, x='date', y='debit',
+                        title='Daily Cash Sales Revenue',
                         markers=True)
             st.plotly_chart(fig, use_container_width=True)
 
             # Monthly summary
-            ledger_df['Month'] = ledger_df['Date'].dt.to_period('M').astype(str)
-            monthly_sales = ledger_df.groupby('Month')['Debit (₹)'].sum().reset_index()
+            sales_df = sales_df.copy()
+            sales_df['Month'] = sales_df['date'].dt.to_period('M').astype(str)
+            monthly_sales = sales_df.groupby('Month')['debit'].sum().reset_index()
 
             col1, col2 = st.columns(2)
 
             with col1:
-                fig = px.bar(monthly_sales, x='Month', y='Debit (₹)',
+                fig = px.bar(monthly_sales, x='Month', y='debit',
                            title='Monthly Sales')
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -713,7 +676,7 @@ def main():
                 st.metric("Avg Stock Days", f"{avg_days_stock:.0f}")
 
             with col3:
-                total_revenue = data['ledger']['Debit (₹)'].sum()
+                total_revenue = data['sales']['debit'].sum()
                 stock_turnover = total_revenue / max(total_stock_value, 1)
                 st.metric("Stock Turnover", f"{stock_turnover:.2f}x")
 
@@ -737,18 +700,44 @@ def main():
                     csv = price_insights_df.to_csv(index=False)
                     st.download_button("Download Price Report", csv, "price_intelligence.csv", "text/csv")
 
+        # Market News Tab (index 7)
+        with tabs[7]:
+            st.header("📰 Market News & Government Schemes")
+            st.caption("Live updates on rice, edible oil prices and government food schemes")
+
+            if st.button("🔄 Refresh News"):
+                if 'news_cache' in st.session_state:
+                    del st.session_state['news_cache']
+
+            if 'news_cache' not in st.session_state:
+                with st.spinner("Fetching latest news..."):
+                    st.session_state.news_cache = fetch_all_news()
+
+            news_data = st.session_state.news_cache
+
+            for category, articles in news_data.items():
+                st.subheader(category)
+                if not articles:
+                    st.info("No recent articles found.")
+                    continue
+
+                for art in articles[:5]:
+                    with st.container():
+                        col1, col2 = st.columns([5, 1])
+                        with col1:
+                            st.markdown(f"**[{art['title']}]({art['link']})**")
+                            if art['source']:
+                                st.caption(f"🗞️ {art['source']}  ·  {art['published'].strftime('%d %b %Y, %I:%M %p')}")
+                            else:
+                                st.caption(art['published'].strftime('%d %b %Y, %I:%M %p'))
+                        with col2:
+                            st.link_button("Read →", art['link'])
+                    st.divider()
+
         # AI Assistant Tab (AI Plus Package only)
         if package == 'ai_plus':
-            with tabs[7]:
+            with tabs[8]:
                 st.header("🤖 AI Assistant - Natural Language Intelligence")
-
-                # Check subscription access
-                if not check_feature_access(st.session_state.user_id, 'ai_assistant', show_prompt=True):
-                    st.info("💡 Try AI Assistant features or upgrade to unlock unlimited access")
-                    # Show limited demo
-                else:
-                    # Full access
-                    pass
 
                 # Check if LLM is configured
                 import os
@@ -860,7 +849,7 @@ def main():
                                     'urgent_reorders': len(urgent_items),
                                     'urgent_reorder_details': urgent_items[:5],  # Top 5
                                     'alerts': results.get('alerts', [])[:5],  # Top 5 alerts
-                                    'revenue': data['ledger']['Debit (₹)'].sum(),
+                                    'revenue': data['sales']['debit'].sum(),
                                     'top_products': data['products'].nlargest(5, 'current_stock')['name'].tolist() if 'current_stock' in data['products'].columns else [],
                                     'customer_count': len(data['customers']),
                                     'customer_data': customer_data,
@@ -907,7 +896,7 @@ def main():
                                         'high_risk_products': len(results.get('risk_df', pd.DataFrame())[results.get('risk_df', pd.DataFrame())['risk_level'] == 'HIGH']) if not results.get('risk_df', pd.DataFrame()).empty else 0,
                                         'urgent_reorders': len(results.get('smart_reorder_df', pd.DataFrame())[results.get('smart_reorder_df', pd.DataFrame())['urgency'] == 'URGENT']) if not results.get('smart_reorder_df', pd.DataFrame()).empty else 0,
                                         'alerts': results.get('alerts', []),
-                                        'revenue': data['ledger']['Debit (₹)'].sum()
+                                        'revenue': data['sales']['debit'].sum()
                                     }
                                     recommendations = llm_engine.smart_recommendations(context)
                                     st.success("🎯 Smart Recommendations")
@@ -995,7 +984,7 @@ def main():
                             'urgent_reorders': len(urgent_items),
                             'urgent_reorder_details': urgent_items[:5],
                             'alerts': results.get('alerts', [])[:5],
-                            'revenue': data['ledger']['Debit (₹)'].sum(),
+                            'revenue': data['sales']['debit'].sum(),
                             'top_products': data['products'].nlargest(5, 'current_stock')['name'].tolist() if 'current_stock' in data['products'].columns else [],
                             'customer_count': len(data['customers']),
                             'customer_data': customer_data,
@@ -1012,7 +1001,7 @@ def main():
 
                         st.session_state.chat_messages.append({"role": "assistant", "content": response})
 
-                        st.experimental_rerun()
+                        st.rerun()
 
                     # Feature Preview
                     st.markdown("---")
@@ -1031,7 +1020,7 @@ def main():
 
     else:
         # Welcome screen
-        st.info("👈 Upload your Tally export files to get started with StockSense")
+        st.info("⏳ Loading Tally data from the Files/ folder...")
 
         # Hero section
         col1, col2, col3 = st.columns(3)
@@ -1047,16 +1036,14 @@ def main():
             ### How to Use StockSense
 
             1. **Export from Tally**:
-               - Export product-wise reports (Price Fluctuation, Customer Adoption, Stock Summary)
-               - Export customer ledger report
+               - Export Cr. Party Ledger → `Cr. party ledger.xlsx`
+               - Export Purchase Item Wise register → `purchase item wise .xlsx`
+               - Export Sales register → `sales .xlsx`
+               - Export Sales Item Wise register → `sales item wise.xlsx`
 
-            2. **Upload Files**:
-               - Upload `product_wise_reports.xlsx`
-               - Upload `sample_tally_customer_report.xlsx`
+            2. **Place files in the `Files/` folder** next to `app_tally.py`
 
-            3. **Process & Analyze**:
-               - Click the "Process & Analyze" button
-               - Wait for AI analysis to complete (~30 seconds)
+            3. **Dashboard loads automatically** — use **Reload Data** in the sidebar to refresh after updating files
 
             4. **Explore Insights**:
                - View dashboards, forecasts, and recommendations

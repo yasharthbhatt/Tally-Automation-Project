@@ -39,7 +39,7 @@ class LLMEngine:
             api_key = os.getenv("OPENAI_API_KEY")
             if api_key:
                 self.client = OpenAI(api_key=api_key)
-                self.model = model or "gpt-4"
+                self.model = model or os.getenv("LLM_MODEL", "gpt-4o-mini")
                 self.enabled = True
                 logger.info(f"OpenAI LLM initialized with {self.model}")
             else:
