@@ -28,11 +28,22 @@ IF "%NOW%" GTR "%EXPIRY%" (
     exit /b 1
 )
 
-:: Activate virtual environment
+:: Activate virtual environment if it exists
 if exist ".venv\Scripts\activate.bat" (
     call .venv\Scripts\activate
-) else (
-    echo WARNING: No .venv found, using system Python
+)
+
+:: Install dependencies if streamlit is missing
+streamlit --version >nul 2>&1
+if errorlevel 1 (
+    echo Streamlit not found. Installing dependencies...
+    pip install -r requirements.txt
+    if errorlevel 1 (
+        echo ERROR: Failed to install dependencies.
+        echo Make sure Python and pip are installed.
+        pause
+        exit /b 1
+    )
 )
 
 echo Trial valid. Starting StockSense...
