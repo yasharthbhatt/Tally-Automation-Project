@@ -34,7 +34,7 @@ if exist ".venv\Scripts\activate.bat" (
 )
 
 :: Install dependencies if streamlit is missing
-streamlit --version >nul 2>&1
+python -m streamlit --version >nul 2>&1
 if errorlevel 1 (
     echo Streamlit not found. Installing dependencies...
     pip install -r requirements.txt
@@ -51,6 +51,6 @@ echo Open browser at: http://localhost:8501
 echo Press Ctrl+C to stop.
 echo.
 
-streamlit run app_tally.py
+python -m streamlit run app_tally.py
 
 pause
